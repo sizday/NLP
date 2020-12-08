@@ -1,0 +1,25 @@
+NER:
+Сроки: 4.12.2020 - 11.12.2020 включительно
+Задание:
+Вам будет дана выборка предложений, в которых требуется распознать адрес/ФИО/улицы
+Метод проверки: Юнит-тесты, которые я вам предоставлю
+Пример теста:
+	def test_2(self):
+        testing_address = 'город липецк улица катукова 36 a'
+        addressNER = AddressNERHypothesis(testing_address)
+        res: AddressNERHypothesis = self.NERInstance.predict(addressNER)
+        self.assertEqual(res.apartment, None)
+
+Результат вашей модели при проверке на юнит-тесте: {'city': 'липецк', 'street': 'катукова', }
+Оценка работы:
+Точной оценки нет. Буду обращать внимание на написание правил и как они согласуются друг с другом и какие ошибки
+Материал, который поможет:
+ссылка на фреймворк: https://github.com/natasha/natasha  Требуется yargy parser.
+как работает yargy parser: https://habr.com/ru/post/349864/
+ссылка на документацию yargy parser: https://github.com/natasha/yargy
+ссылка  на наташу: https://habr.com/ru/post/516098/
+
+Разделение обязанностей:
+(1): ФИО (тестовые фразы находятся в скрипте test_persons.py)
+(2): Весь адресс (тестовые фразы находятся в скрипте test_cities.py)
+
