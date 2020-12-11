@@ -20,11 +20,11 @@ class TestStreet(unittest.TestCase):
         self.assertEqual(('36 a', None, None), (res.house, res.corpus, res.building))
 
     def test_3(self):
-        testing_address = 'сургут улица рабочая дом 31а'
+        testing_address = 'сургут улица рабочая дом 31a'
         res = self.NERInstance.predict(testing_address)
         self.assertEqual(('сургут', None), (res.city, res.city_type))
         self.assertEqual(('рабочая', 'улица'), (res.street, res.street_type))
-        self.assertEqual(('31а', None, None), (res.house, res.corpus, res.building))
+        self.assertEqual(('31a', None, None), (res.house, res.corpus, res.building))
 
     def test_4(self):
         testing_address = 'город липецк доватора 18'
@@ -109,7 +109,7 @@ class TestStreet(unittest.TestCase):
         testing_address = 'зеленые аллеи город видное дом 8'
         res = self.NERInstance.predict(testing_address)
         self.assertEqual(('видное', 'город'), (res.city, res.city_type))
-        self.assertEqual(('зеленые аллеи', None), (res.street, res.street_type))
+        self.assertEqual(('зеленые', 'аллеи'), (res.street, res.street_type))
         self.assertEqual(('8', None, None), (res.house, res.corpus, res.building))
         self.assertEqual(None, res.apartment,)
 

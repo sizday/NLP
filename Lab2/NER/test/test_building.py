@@ -17,9 +17,9 @@ class TestHome(unittest.TestCase):
         self.assertEqual((res.house, res.corpus, None), ('36 a', None, None))
 
     def test_3(self):
-        testing_address = 'сургут улица рабочая дом 31а'
+        testing_address = 'сургут улица рабочая дом 31a'
         res = self.NERInstance.predict(testing_address)
-        self.assertEqual((res.house, res.corpus, None), ('31а', None, None))
+        self.assertEqual((res.house, res.corpus, None), ('31a', None, None))
 
     def test_4(self):
         testing_address = 'город липецк доватора 18'

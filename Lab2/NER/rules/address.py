@@ -18,23 +18,21 @@ SPACE = eq(' ')
 ADJF = gram('ADJF')
 NOUN = gram('NOUN')
 INT = type('INT')
+INTJ = gram('INTJ')
+ROD = gram('gent')
 TITLE = true()
 
 ANUM = rule(INT, DASH.optional(), in_caseless({
-    'я', 'й', 'ая', 'ий', 'ой'
+    'я', 'й', 'ая', 'ий', 'ой', 'ое'
 }))
 
 COMPLEX = morph_pipeline(COMPLEX_CITIES)
 SIMPLE = dictionary(SIMPLE_CITIES)
 
-CITY_ABBR = in_caseless({
-    'питер', 'спб', 'мск', 'нск', 'нн'
-})
-
+CITY_NAME_EXCEPTION = rule(normalized('сургут')).interpretation(AddrPart.city.const('сургут'))
 CITY_NAME = or_(
-    rule(CITY_ABBR),
     rule(SIMPLE),
-    COMPLEX
+    COMPLEX,
 ).interpretation(AddrPart.city)
 
 SIMPLE = and_(
@@ -57,7 +55,9 @@ CITY_WORDS = or_(
 ).interpretation(AddrPart.city_type.const('город'))
 
 CITY = or_(
-    rule(CITY_WORDS.optional(), CITY_NAME)
+    rule(CITY_NAME),
+    rule(CITY_WORDS, CITY_NAME),
+    rule(CITY_NAME, CITY_WORDS)
 ).interpretation(AddrPart)
 
 MODIFIER_WORDS_ = rule(
@@ -89,21 +89,36 @@ MONTH_WORDS = dictionary(
     {'январь', 'февраль', 'март', 'апрель', 'май', 'июнь', 'июль', 'август',
      'сентябрь', 'октябрь', 'ноябрь', 'декабрь', })
 
-ERROR = not_(normalized('ну'))
 DAY = and_(INT, gte(1), lte(31))
 YEAR = and_(INT, gte(1), lte(2100))
 YEAR_WORDS = normalized('год')
 DATE = or_(
     rule(DAY, MONTH_WORDS),
+    rule(ADJF, normalized('дней')),
     rule(YEAR, YEAR_WORDS))
-PART = and_(
+
+TITLE_RULE = and_(
     TITLE,
+    not_(INT),
+    not_(INTJ),
+    not_(length_eq(3)),
+    not_(normalized('проезд')),
+    not_(normalized('видный')),
+    not_(normalized('крылова')),
+    not_(normalized('питер'))
+)
+
+PART = and_(
+    TITLE_RULE,
     or_(gram('Name'), gram('Surn')))
 
 MAYBE_FIO = or_(
-    rule(TITLE, PART),
-    rule(PART, TITLE),
-    rule(gram('Name'), gram('Surn')))
+    rule(gram('Surn')),
+    rule(gram('Name')),
+    rule(gram('Surn'), gram('Surn')),
+    rule(TITLE_RULE, PART),
+    rule(PART, TITLE_RULE),
+)
 
 POSITION_WORDS = or_(
     rule(normalized('академик')),
@@ -122,32 +137,43 @@ IMENI_WORDS = or_(
     rule(caseless('имени')))
 IMENI = rule(IMENI_WORDS.optional(), MAYBE_PERSON)
 
-ROD = gram('gent')
 SIMPLE = and_(
     or_(ADJF, and_(NOUN, ROD)),
-    TITLE)
+    TITLE_RULE)
 COMPLEX = or_(
-    rule(and_(ADJF, TITLE), NOUN),
-    rule(TITLE, DASH.optional(), TITLE))
+    rule(and_(ADJF, TITLE_RULE), NOUN),
+    rule(TITLE_RULE, DASH.optional(), TITLE_RULE))
 
 EXCEPTION = dictionary({'арбат', 'варварка'})
 MAYBE_NAME = or_(
     rule(SIMPLE),
     rule(EXCEPTION))
 
+MAIL_STREET = rule(INT, ADJF, NOUN)
+
+GARDEN_EXCEPTION = rule(normalized('парковая')).interpretation(AddrPart.street.const('парковая'))
+
 LET_NAME = or_(MAYBE_NAME, LET, DATE, IMENI)
-MODIFIER_NAME = rule(MODIFIER_WORDS, NAME)
+MODIFIER_NAME = rule(MODIFIER_WORDS, NOUN)
 NAME = or_(
     LET_NAME,
-    ANUM,
-    rule(MODIFIER_NAME, ANUM),
-    rule(ANUM, NAME))
+    MODIFIER_NAME,
+    MAIL_STREET,
+    # ANUM,
+    # rule(MODIFIER_NAME, ANUM),
+    # rule(ANUM, NAME)
+)
 ADDR_NAME = NAME
+
+CITY_NAME_ABBR = rule(normalized('питер')).interpretation(AddrPart.city.const('санкт-петербург'))
+SBP_NAME = LET_NAME.interpretation(AddrPart.street)
+SPB_STREET = rule(CITY_NAME_ABBR, SBP_NAME).interpretation(AddrPart)
 
 # улица
 STREET_NAME = ADDR_NAME.interpretation(AddrPart.street)
 STREET_WORDS = or_(
     rule(normalized('улица')),
+    rule(normalized('улица'), normalized('значит')),
     rule(caseless('ул'), DOT.optional())
 ).interpretation(AddrPart.street_type.const('улица'))
 STREET = or_(
@@ -205,6 +231,11 @@ VAL = or_(
     rule(VAL_NAME, VAL_WORDS)
 ).interpretation(AddrPart.street)
 
+# аллея
+ALLEY_WORDS = rule(normalized('аллеи')).interpretation(AddrPart.street_type.const('аллеи'))
+ALLEY_NAME = ADDR_NAME.interpretation(AddrPart.street)
+ALLEY = rule(ALLEY_NAME, ALLEY_WORDS).interpretation(AddrPart)
+
 # проспект
 AVENUE_WORDS = or_(
     rule(in_caseless({'пр', 'просп'}), DOT.optional()),
@@ -232,8 +263,7 @@ DISTRICT = or_(
 # проезд
 DRIVEWAY_WORDS = or_(
     rule(normalized('проезд')),
-    rule(caseless('пр'), DOT.optional()),
-    rule(caseless('пр'), '-', in_caseless({'зд', 'д'}), DOT.optional())
+    rule(caseless('пр'), DOT.optional())
 ).interpretation(AddrPart.street_type.const('проезд'))
 DRIVEWAY_NAME = ADDR_NAME.interpretation(AddrPart.street)
 DRIVEWAY = or_(
@@ -277,16 +307,17 @@ EMBANKMENT = or_(
     rule(EMBANKMENT_NAME, EMBANKMENT_WORDS)
 ).interpretation(AddrPart)
 
-LETTER = in_caseless(set('абвгдежзиклмнопрстуфхшщэюя'))
+LETTER = in_('aбвгдежзиклмнопрстуфхшщэюя')
 QUOTE = in_(QUOTES)
 LETTER = or_(
     rule(LETTER),
     rule(QUOTE, LETTER, QUOTE))
 SEP = in_(r' /\-')
 VALUE = or_(
-    rule(INT, SEP, LETTER),
-    rule(INT, SPACE, LETTER),
+    # rule(INT, SEP, LETTER),
     rule(INT, LETTER),
+    rule(INT, SPACE, LETTER),
+
     rule(INT),
     rule(INT, SEP, INT))
 ADDR_VALUE = rule(eq('№').optional(), VALUE)
@@ -330,14 +361,44 @@ BUILDING_WORDS = or_(
 BUILDING_VALUE = ADDR_VALUE.interpretation(AddrPart.building)
 BUILDING = rule(BUILDING_WORDS, BUILDING_VALUE).interpretation(AddrPart)
 
-DOM_STREET = rule(
+
+STREET_HOUSE_CORPUS = rule(
     CITY.optional(),
     or_(HIGHWAY, STREET, STREET_NAME, AVENUE,
-        DRIVEWAY, TRACT, SQUARE, EMBANKMENT,
+        DRIVEWAY, TRACT, SQUARE, EMBANKMENT, ALLEY,
+        BOULEVARD, DISTRICT, GAI, VAL, ALLEYWAY),
+    HOUSE_WORDS.optional(),
+    HOUSE_VALUE,
+    CORPUS_WORDS,
+    CORPUS_VALUE
+).interpretation(AddrPart)
+
+HOUSE_CORPUS = rule(
+    HOUSE_VALUE,
+    CORPUS_WORDS,
+    CORPUS_VALUE
+).interpretation(AddrPart)
+
+HOUSE_BUILDING = rule(
+    CITY.optional(),
+    or_(HIGHWAY, STREET, STREET_NAME, AVENUE,
+        DRIVEWAY, TRACT, SQUARE, EMBANKMENT, ALLEY,
+        BOULEVARD, DISTRICT, GAI, VAL, ALLEYWAY),
+    HOUSE_WORDS.optional(),
+    HOUSE_VALUE,
+    BUILDING_WORDS,
+    BUILDING_VALUE
+).interpretation(AddrPart)
+
+HOUSE_STREET = rule(
+    CITY.optional(),
+    or_(HIGHWAY, STREET, STREET_NAME, AVENUE,
+        DRIVEWAY, TRACT, SQUARE, EMBANKMENT, ALLEY,
         BOULEVARD, DISTRICT, GAI, VAL, ALLEYWAY),
     HOUSE_WORDS.optional(),
     HOUSE_VALUE
 ).interpretation(AddrPart)
+
 
 VALUE_HOUSE = rule(INT).interpretation(AddrPart.house)
 
@@ -346,7 +407,10 @@ NUMBER_HOUSE = rule(
     VALUE_HOUSE
 ).interpretation(AddrPart)
 
-DOUBLE_HOUSE = rule(
+
+TRIPLE_HOUSE = rule(
+    rule(normalized('дом')),
+    rule(normalized('дом')),
     rule(normalized('дом')),
     VALUE_HOUSE
 ).interpretation(AddrPart)
@@ -355,7 +419,7 @@ DOUBLE_HOUSE = rule(
 DOM_APARTMENT = rule(HOUSE_VALUE, APARTMENT_VALUE).interpretation(AddrPart)
 
 ADDR_PART = or_(
-    NUMBER_HOUSE, DOUBLE_HOUSE, DOM_STREET, DOM_APARTMENT, CITY, STREET, DRIVEWAY, ALLEYWAY,
-    SQUARE, HIGHWAY, TRACT, EMBANKMENT, VAL, GAI,
-    BOULEVARD, DISTRICT, CORPUS, APARTMENT, BUILDING
+    SPB_STREET, GARDEN_EXCEPTION, CITY_NAME_EXCEPTION, CITY, NUMBER_HOUSE, HOUSE_CORPUS, HOUSE_BUILDING, TRIPLE_HOUSE,
+    HOUSE_STREET, DOM_APARTMENT, STREET, DRIVEWAY, ALLEYWAY, SQUARE, HIGHWAY, TRACT, EMBANKMENT, VAL, GAI, ALLEY, HOUSE,
+    STREET_HOUSE_CORPUS, HOUSE_BUILDING, BOULEVARD, DISTRICT, CORPUS, APARTMENT, BUILDING
 ).interpretation(AddrPart)
